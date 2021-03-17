@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -6,26 +6,75 @@ import {
   Platform,
   ScrollView,
   TextInput,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Form } from '@unform/mobile';
-
-import Icon from 'react-native-vector-icons/Feather';
+import * as Yup from 'yup';
 
 import { FormHandles } from '@unform/core';
+import Icon from 'react-native-vector-icons/Feather';
+import api from '../../services/api';
+
 import Input from '../../components/Input';
 import Button from '../../components/Button';
+
+import getValidationErrors from '../../utils/getValidationErros';
 
 import logoImg from '../../assets/logo.png';
 
 import { Container, Title, BackToSignIn, BackToSignInText } from './styles';
 
+interface SignUpFormData {
+  name: string;
+  email: string;
+  password: string;
+}
 const SignUp: React.FC = () => {
   const formRef = useRef<FormHandles>(null);
   const passwordInputRef = useRef<TextInput>(null);
   const emailInputRef = useRef<TextInput>(null);
 
   const navigation = useNavigation();
+
+  const handleSignUp = useCallback(
+    async (data: SignUpFormData) => {
+      try {
+        formRef.current?.setErrors({});
+        const schema = Yup.object().shape({
+          name: Yup.string().required('Nome é obrigatório'),
+          email: Yup.string()
+            .required('E-mail é obrigatório')
+            .email('Digite um E-mail válido'),
+          password: Yup.string().min(6, 'No mínimo 6 caracteres'),
+        });
+
+        await schema.validate(data, {
+          abortEarly: false,
+        });
+
+        await api.post('/users', data);
+        Alert.alert(
+          'Cadastro Realizado com Sucesso',
+          'Você já pode fazer login na aplicação.',
+        );
+        navigation.goBack();
+      } catch (err) {
+        if (err instanceof Yup.ValidationError) {
+          const errors = getValidationErrors(err);
+          console.log(errors);
+          formRef.current?.setErrors(errors);
+          return;
+        }
+        console.log(err);
+        Alert.alert(
+          'Erro ao ralizar o cadastro',
+          'Ocorreu um erro ao fazer seu cadastro, tente novamente.',
+        );
+      }
+    },
+    [navigation],
+  );
 
   return (
     <>
@@ -45,9 +94,7 @@ const SignUp: React.FC = () => {
             </View>
             <Form
               ref={formRef}
-              onSubmit={data => {
-                console.log(data);
-              }}
+              onSubmit={handleSignUp}
               style={{ width: '100%' }}
             >
               <Input
